@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Title>Stormancer client libraries</Title>
+		<Authors>jmderuty</Authors>
+		<Company>Stormancer</Company>
+		<Description>Dotnet client libraries for Stormancer clusters.</Description>
+		<PackageProjectUrl>https://www.stormancer.com</PackageProjectUrl>
+		<PackageIcon>stormancer_128x128.png</PackageIcon>
+		<RootNamespace>Stormancer</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <None Remove="docs\readme.md" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="docs\readme.md" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\..\..\res\stormancer_128x128.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.IO.Pipelines" Version="8.0.0-preview.6.23329.7" />
+	</ItemGroup>
+
+</Project>
