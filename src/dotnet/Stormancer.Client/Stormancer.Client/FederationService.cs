@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -73,18 +74,67 @@ namespace Stormancer
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IJsonSerializer _jsonSerializer;
+        private readonly StormancerClientConfiguration _configuration;
 
-        public FederationService(IHttpClientFactory httpClientFactory, IJsonSerializer jsonSerializer)
+        public FederationService(IHttpClientFactory httpClientFactory, IJsonSerializer jsonSerializer, StormancerClientConfiguration configuration)
         {
             _httpClientFactory = httpClientFactory;
             _jsonSerializer = jsonSerializer;
+            _configuration = configuration;
+            _clusterUri = configuration.DefaultClusterUri;
         }
-        public Task<Federation> GetFederationAsync(Uri clusterUri)
+        public async Task<Federation> GetFederationAsync(Uri clusterUri)
         {
             var client = _httpClientFactory.CreateClient("cluster");
 
-            var json = client.GetStringAsync(new Uri(clusterUri, "/_federation"));
+            var json = await client.GetStringAsync(new Uri(clusterUri, "/_federation"));
+            return _jsonSerializer.Deserialize<Federation>(json);
 
+            
+        }
+
+        private DateTime _lastFederationMetadtaRetrievedOn;
+        private Task<Federation>? _federationMetadata;
+        private Uri? _clusterUri;
+        public async Task<Federation> GetCurrentFederationAsync()
+        {
+            if(_lastFederationMetadtaRetrievedOn < DateTime.UtcNow - _configuration.ClusterFederationRefreshInterval)
+            {
+                _federationMetadata = null;
+            }
+            if(_federationMetadata == null)
+            {
+                return await ConnectToFederationAsync();
+            }
+            else
+            {
+                return await _federationMetadata;
+            }
+           
+        }
+        public async Task<Federation> ConnectToFederationAsync(Uri? clusterUri = default)
+        {
+            if (clusterUri != null)
+            {
+                _clusterUri = clusterUri;
+            }
+            if (_clusterUri == default)
+            {
+                throw new InvalidOperationException("No default cluster URI set. You must either set a default cluster uri in the configuration, or provide an uri when calling 'ConnectToFederation'");
+            }
+
+            _federationMetadata = GetFederationAsync(_clusterUri);
+
+            try
+            {
+                return await _federationMetadata;
+            }
+            catch(Exception)
+            {
+                _federationMetadata = null;
+                throw;
+            }
+          
         }
     }
 }

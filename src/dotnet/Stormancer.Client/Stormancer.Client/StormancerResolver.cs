@@ -139,8 +139,10 @@ namespace Stormancer
 
             foreach (var registration in registrations)
             {
+                bool registered = false;
                 foreach (var serviceType in registration.ServicesTypes)
                 {
+                    registered = true;
                     if (!_dependencies.TryGetValue(serviceType, out var dependencies))
                     {
                         dependencies = new List<Dependency>();
@@ -149,6 +151,18 @@ namespace Stormancer
 
                     dependencies.Add(new Dependency(registration));
                 }
+                if(!registered)
+                {
+                    if (!_dependencies.TryGetValue(registration.ImplementationType, out var dependencies))
+                    {
+                        dependencies = new List<Dependency>();
+                        _dependencies.Add(registration.ImplementationType, dependencies);
+                    }
+
+                    dependencies.Add(new Dependency(registration));
+                }
+
+                
             }
         }
 
@@ -215,7 +229,7 @@ namespace Stormancer
                         context = new DependencyResolutionContext(this, registration);
                     }
 
-                    if (dep.Registration.SingleInstance)
+                    if (dep.Registration.LifecyclePolicy.SingleInstance)
                     {
                         if (dep.Instance == null)
                         {
@@ -265,7 +279,7 @@ namespace Stormancer
                     context = new DependencyResolutionContext(this, registration);
                 }
 
-                if (dep.Registration.SingleInstance)
+                if (dep.Registration.LifecyclePolicy.SingleInstance)
                 {
                     if (dep.Instance == null)
                     {
@@ -341,7 +355,7 @@ namespace Stormancer
         /// <typeparam name="T"></typeparam>
         /// <param name="component"></param>
         /// <returns></returns>
-        public Registration Register<T>(Func<T> component) where T : class
+        public Registration<T> Register<T>(Func<T> component) where T : class
         {
             return Register(_ => component());
         }
@@ -373,6 +387,14 @@ namespace Stormancer
         }
 
         internal List<Registration> Registrations { get; } = new List<Registration>();
+    }
+
+    /// <summary>
+    /// Describes a scope policy
+    /// </summary>
+    public class ScopePolicy
+    {
+        public bool SingleInstance { get; set; }
     }
 
     /// <summary>
@@ -411,7 +433,7 @@ namespace Stormancer
         /// <summary>
         /// Gets a value indicating if the registration should be a single instance per scope.
         /// </summary>
-        public bool SingleInstance { get; protected set; }
+        public ScopePolicy LifecyclePolicy { get; protected set; } = new ScopePolicy();
 
         /// <summary>
         /// True if the registration was tested for cycles.
@@ -464,6 +486,11 @@ namespace Stormancer
         {
             _instance = instance;
 
+        }
+        public Registration<T> SingleInstance()
+        {
+            this.LifecyclePolicy.SingleInstance = true;
+            return this;
         }
 
         /// <summary>

@@ -8,7 +8,10 @@ namespace Stormancer
     /// </summary>
     public class StormancerClient : IDisposable
     {
-     
+
+        private readonly StormancerClientConfiguration _configuration;
+
+        private readonly DependencyScope _scope;
         /// <summary>
         /// Creates a <see cref="StormancerClient"/> instance
         /// </summary>
@@ -25,7 +28,20 @@ namespace Stormancer
 
         private StormancerClient(StormancerClientConfigurationBuilder builder)
         {
+           _configuration = new StormancerClientConfiguration(builder);
 
+            var container = new Container(BuildContainer);
+            _scope = container.CreateRootScope();
+        }
+
+        private void BuildContainer(DependencyBuilder dependencyBuilder)
+        {
+            DependenciesConfiguration.ConfigureDependencies(dependencyBuilder, this,_configuration);
+
+            foreach(var plugin in _configuration.Plugins)
+            {
+                plugin.OnClientDependenciesRegistration(dependencyBuilder);
+            }
         }
 
         /// <summary>
@@ -33,7 +49,7 @@ namespace Stormancer
         /// </summary>
         public void Dispose()
         {
-           
+            _scope.Dispose();
         }
 
         /// <summary>
@@ -46,9 +62,21 @@ namespace Stormancer
         /// </summary>
         /// <param name="clusterUri"></param>
         /// <returns></returns>
-        public async Task ConnectToFederation(Uri? clusterUri = default)
+        public async Task<Federation> ConnectToFederationAsync(Uri? clusterUri = default)
         {
-            
+
+            var federationService = _scope.Resolve<FederationService>();
+            return await federationService.ConnectToFederationAsync(clusterUri);
+        }
+
+        /// <summary>
+        /// Gets the metadata of the current federation.
+        /// </summary>
+        /// <returns></returns>
+        public Task<Federation> GetFederationMetadataAsync()
+        {
+            var federationService = _scope.Resolve<FederationService>();
+            return federationService.GetCurrentFederationAsync();
         }
 
         /// <summary>

@@ -14,7 +14,8 @@ namespace Stormancer.Tests
         [Test]
         public async Task ConnectToFederation()
         {
-            _client.ConnectToFederation();
+            Debug.Assert(_client != null);
+            await _client.ConnectToFederationAsync();
         }
 
         [Test]

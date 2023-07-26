@@ -13,6 +13,11 @@ namespace Stormancer
     /// </remarks>
     public interface IHttpClientFactory
     {
+        /// <summary>
+        /// provides an http client instance.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         HttpClient CreateClient(string id);
     }
 }
