@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Stormancer.Tests
 {
     public class Tests
@@ -10,10 +12,19 @@ namespace Stormancer.Tests
         }
 
         [Test]
-        public async Task Test1()
+        public async Task ConnectToFederation()
         {
-            _client.GetSceneReference("authenticator");
+            _client.ConnectToFederation();
+        }
 
+        [Test]
+        public async Task Connect()
+        {
+            Debug.Assert(_client != null);
+
+            using var scene = _client.GetSceneReference("authenticator");
+
+            await scene.WhenConnectedAsync();
             Assert.Pass();
         }
     }

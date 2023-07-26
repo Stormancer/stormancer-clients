@@ -41,10 +41,48 @@ namespace Stormancer
         /// </summary>
         public ApplicationId? DefaultApplication { get; }
 
-        public async Task ConnectToFederation(Uri clusterUri)
+        /// <summary>
+        /// Connects the client to a cluster federation.
+        /// </summary>
+        /// <param name="clusterUri"></param>
+        /// <returns></returns>
+        public async Task ConnectToFederation(Uri? clusterUri = default)
+        {
+            
+        }
+
+        /// <summary>
+        /// Connects to a Stormancer server application.
+        /// </summary>
+        /// <param name="applicationIdentifier"></param>
+        /// <returns></returns>
+        /// <remarks>The client must be connected to a federation before calling this method.</remarks>
+        public async Task ConnectToServerApplication(ApplicationIdentifier? applicationIdentifier)
         {
 
         }
+
+        /// <summary>
+        /// Connects to a Stormancer server application.
+        /// </summary>
+     
+        /// <returns></returns>
+        public async Task ConnectToServerApplication()
+        {
+
+        }
+
+        /// <summary>
+        /// Connects to a Stormancer server application.
+        /// </summary>
+        /// <param name="applicationIdentifier"></param>
+        /// <returns></returns>
+        /// <remarks>The client must be connected to a federation before calling this method.</remarks>
+        public async Task ConnectToServerApplication(Uri clusterUri, ApplicationIdentifier applicationIdentifier)
+        {
+
+        }
+
 
         /// <summary>
         /// Gets a reference to a scene

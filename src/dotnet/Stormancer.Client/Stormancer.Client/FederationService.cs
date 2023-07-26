@@ -72,10 +72,12 @@ namespace Stormancer
     internal class FederationService
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IJsonSerializer _jsonSerializer;
 
-        public FederationService(IHttpClientFactory httpClientFactory)
+        public FederationService(IHttpClientFactory httpClientFactory, IJsonSerializer jsonSerializer)
         {
             _httpClientFactory = httpClientFactory;
+            _jsonSerializer = jsonSerializer;
         }
         public Task<Federation> GetFederationAsync(Uri clusterUri)
         {

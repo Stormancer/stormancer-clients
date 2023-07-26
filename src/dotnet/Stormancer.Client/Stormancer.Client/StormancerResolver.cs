@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO.Pipes;
 using System.Linq;
+using System.Net.WebSockets;
 
 namespace Stormancer
 {
@@ -13,8 +15,6 @@ namespace Stormancer
         internal DependencyCycleException(Stack<Type> stack) : base("Failed to resolve dependency because a cycle was detected in the dependency graph.")
         {
             Stack = stack;
-
-
         }
 
         /// <summary>
@@ -82,7 +82,7 @@ namespace Stormancer
             return _scope.TryResolve<T>(out dependency, this);
         }
 
-        internal void PushCycleTest(Type implementationType)
+        internal void PushCycleStep(Type implementationType)
         {
             if (_cycleDetectionStack != null)
             {
@@ -98,6 +98,14 @@ namespace Stormancer
             }
 
         }
+        internal void PopCycleStep()
+        {
+            if (_cycleDetectionStack != null)
+            {
+                _cycleDetectionStack.Pop();
+            }
+        }
+
     }
 
     /// <summary>
@@ -122,22 +130,36 @@ namespace Stormancer
                 }
             }
         }
-        private readonly IEnumerable<Registration> _registrations;
         private readonly DependencyScope? _parent;
 
-        object _syncRoot = new object();
 
         private readonly Dictionary<Type, List<Dependency>> _dependencies = new Dictionary<Type, List<Dependency>>();
         internal DependencyScope(IEnumerable<Registration> registrations)
         {
-            _registrations = registrations;
+
+            foreach (var registration in registrations)
+            {
+                foreach (var serviceType in registration.ServicesTypes)
+                {
+                    if (!_dependencies.TryGetValue(serviceType, out var dependencies))
+                    {
+                        dependencies = new List<Dependency>();
+                        _dependencies.Add(serviceType, dependencies);
+                    }
+
+                    dependencies.Add(new Dependency(registration));
+                }
+            }
         }
 
-        internal DependencyScope(DependencyScope parent, IEnumerable<Registration> registrations)
+        internal DependencyScope(DependencyScope parent, IEnumerable<Registration> registrations) : this(registrations)
         {
-            _registrations = registrations;
+
             _parent = parent;
+
         }
+
+
         /// <summary>
         /// Resolves a mandatory dependency.
         /// </summary>
@@ -145,45 +167,15 @@ namespace Stormancer
         /// <returns></returns>
         public T Resolve<T>(DependencyResolutionContext? context = null) where T : class
         {
-            var type = typeof(T);
-            T? instance = null;
-            lock (_syncRoot)
+
+            if (TryResolve<T>(out var result, context))
             {
-                if (_dependencies.TryGetValue(type, out var dependencies))
-                {
-                    var dep = dependencies[dependencies.Count - 1];
-
-
-                    if (dep.Registration.SingleInstance)
-                    {
-                        if (dep.Instance == null)
-                        {
-                            var registration = dep.Registration;
-                            if (context == null)
-                            {
-                                context = new DependencyResolutionContext(this, registration);
-                            }
-                            dep.Instance = registration.GetInstance<T>(context);
-                        }
-
-                        instance = (T?)dep.Instance;
-                    }
-                    else
-                    {
-                        instance = dep.Registration.GetInstance<T>(context);
-                    }
-                }
-                else if (_parent != null)
-                {
-                    return _parent.Resolve<T>(context);
-                }
+                return result;
             }
-
-            if (instance == null)
+            else
             {
                 throw new InvalidOperationException($"Fail to resolve '{typeof(T)}.'");
             }
-            return instance;
         }
 
         /// <summary>
@@ -193,7 +185,14 @@ namespace Stormancer
         /// <returns></returns>
         public T? ResolveOptional<T>(DependencyResolutionContext? context = null) where T : class
         {
-
+            if (TryResolve<T>(out var result, context))
+            {
+                return result;
+            }
+            else
+            {
+                return default;
+            }
         }
 
         /// <summary>
@@ -203,6 +202,47 @@ namespace Stormancer
         /// <returns></returns>
         public IEnumerable<T> ResolveAll<T>(DependencyResolutionContext? context = null) where T : class
         {
+            var type = typeof(T);
+
+
+            if (_dependencies.TryGetValue(type, out var dependencies))
+            {
+                foreach (var dep in dependencies)
+                {
+                    var registration = dep.Registration;
+                    if (context == null)
+                    {
+                        context = new DependencyResolutionContext(this, registration);
+                    }
+
+                    if (dep.Registration.SingleInstance)
+                    {
+                        if (dep.Instance == null)
+                        {
+
+
+                            dep.Instance = registration.GetInstance<T>(context);
+                        }
+                        if (dep.Instance is T instance)
+                        {
+                            yield return instance;
+                        }
+
+                    }
+                    else if (registration.GetInstance<T>(context) is T instance)
+                    {
+                        yield return instance;
+                    }
+                }
+            }
+            else if (_parent != null)
+            {
+                foreach (var v in _parent.ResolveAll<T>(context))
+                {
+                    yield return v;
+                }
+
+            }
 
         }
 
@@ -214,7 +254,45 @@ namespace Stormancer
         /// <returns></returns>
         public bool TryResolve<T>([NotNullWhen(true)] out T? dependency, DependencyResolutionContext? context = null) where T : class
         {
+            var type = typeof(T);
 
+            if (_dependencies.TryGetValue(type, out var dependencies))
+            {
+                var dep = dependencies[dependencies.Count - 1];
+                var registration = dep.Registration;
+                if (context == null)
+                {
+                    context = new DependencyResolutionContext(this, registration);
+                }
+
+                if (dep.Registration.SingleInstance)
+                {
+                    if (dep.Instance == null)
+                    {
+
+
+                        dep.Instance = registration.GetInstance<T>(context);
+                    }
+
+                    dependency = (T?)dep.Instance;
+                }
+                else
+                {
+                    dependency = registration.GetInstance<T>(context);
+                }
+            }
+            else if (_parent != null)
+            {
+                dependency = _parent.Resolve<T>(context);
+
+            }
+            else
+            {
+                dependency = default;
+            }
+
+
+            return dependency != null;
         }
 
         /// <summary>
@@ -237,9 +315,18 @@ namespace Stormancer
             }
         }
 
+        /// <summary>
+        /// Disposes the scope and all disposable dependencies in it.
+        /// </summary>
         public void Dispose()
         {
-            throw new NotImplementedException();
+            foreach (var dependency in _dependencies.SelectMany(kvp => kvp.Value))
+            {
+                if (dependency.Instance is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
         }
     }
 
@@ -335,20 +422,26 @@ namespace Stormancer
         {
             if (!CycleCheckDone)
             {
-                context.EnsureNotCycle(ImplementationType);
+                context.PushCycleStep(ImplementationType);
             }
+            TService? instance;
             if (_instance != null)
             {
                 CycleCheckDone = true;
-                return (TService)_instance;
+                instance = (TService?)_instance;
             }
             else
             {
 
-                var result = (TService?)_factory?.Invoke(context);
+                instance = (TService?)_factory?.Invoke(context);
                 CycleCheckDone = true;
-                return result;
+
             }
+            if (!CycleCheckDone)
+            {
+                context.PopCycleStep();
+            }
+            return instance;
         }
     }
 
@@ -418,169 +511,4 @@ namespace Stormancer
     }
 
 
-    public class StormancerResolver : IDependencyResolver, IDisposable
-    {
-        private readonly Dictionary<Type, List<Registration>> _registrations = new Dictionary<Type, List<Registration>>();
-        private readonly StormancerResolver? _parent = null;
-
-
-        public StormancerResolver(StormancerResolver? parent = null)
-        {
-            _parent = parent;
-        }
-
-        public T? ResolveOptional<T>() where T : notnull
-        {
-            if (TryResolve<T>(out var result))
-            {
-                return result;
-            }
-            else if (_parent != null && _parent.TryResolve(out result))
-            {
-                return result;
-            }
-            else
-            {
-                return default;
-            }
-        }
-        public T Resolve<T>() where T : notnull
-        {
-
-            var result = ResolveOptional<T>();
-            if (result != null)
-            {
-                return result;
-            }
-            else
-            {
-                throw new InvalidOperationException(string.Format("The requested component of type {0} was not registered.", typeof(T)));
-            }
-        }
-
-        public bool TryResolve<T>(out T? dependency) where T : notnull
-        {
-
-            if (_registrations.TryGetValue(typeof(T), out var registrations) && registrations.Any())
-            {
-                var registration = registrations.Last();
-                var factory = registration.factory;
-                if (registration.singleInstance)
-                {
-
-                    if (registration.instance == null && factory != null)
-                    {
-                        registration.instance = factory(this);
-                    }
-
-                    dependency = (T?)registration.instance;
-
-                    return dependency != null;
-                }
-                else
-                {
-                    if (factory != null)
-                    {
-                        dependency = (T)factory(this);
-                        return dependency != null;
-                    }
-                }
-            }
-
-            dependency = default(T);
-            return false;
-        }
-
-        private Func<IDependencyResolver, T> ResolveFactory<T>()
-        {
-
-            if (_registrations.TryGetValue(typeof(T), out var registrations) && registrations.Any())
-            {
-                var registration = registrations.Last();
-                return resolver => (T)(registration.factory(resolver));
-            }
-            else if (_parent != null)
-            {
-                return _parent.ResolveFactory<T>();
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        public void Register<T>(Func<T> component) where T : notnull
-        {
-            Register(c => component(), true);
-        }
-
-        public void Register<T>(Func<IDependencyResolver, T> factory, bool singleInstance = false) where T : notnull
-        {
-            Registration registration = new Registration((dependencyResolver) => factory(dependencyResolver), singleInstance, null);
-
-
-            if (!_registrations.TryGetValue(typeof(T), out var registrations))
-            {
-                registrations = new List<Registration>();
-                _registrations.Add(typeof(T), registrations);
-            }
-            registrations.Add(registration);
-        }
-
-        public void RegisterDependency<T>(T component) where T : notnull
-        {
-            Registration registration = new Registration(null, true, component);
-            registration.singleInstance = true;
-            registration.instance = component;
-            if (!_registrations.TryGetValue(typeof(T), out var registrations))
-            {
-                registrations = new List<Registration>();
-                _registrations.Add(typeof(T), registrations);
-            }
-            registrations.Add(registration);
-        }
-
-        public void Dispose()
-        {
-            foreach (var registrations in _registrations)
-            {
-                foreach (var registration in registrations.Value)
-                {
-                    var disposable = registration.instance as IDisposable;
-                    disposable?.Dispose();
-                }
-            }
-        }
-
-        public IEnumerable<T> ResolveAll<T>()
-        {
-            if (_registrations.TryGetValue(typeof(T), out var registrations))
-            {
-                foreach (var registration in registrations)
-                {
-
-                    var factory = registration.factory;
-                    if (registration.singleInstance)
-                    {
-                        if (registration.instance == null && factory != null)
-                        {
-                            registration.instance = factory(this);
-                        }
-
-                        yield return (T)registration.instance;
-
-                    }
-                    else
-                    {
-                        yield return (T)registration.factory(this);
-                    }
-
-
-
-                }
-            }
-
-
-        }
-    }
 }
