@@ -93,12 +93,14 @@ namespace Stormancer
             
         }
 
-        private DateTime _lastFederationMetadtaRetrievedOn;
+        private DateTime _federationMetadataLastRetrievedOn;
         private Task<Federation>? _federationMetadata;
         private Uri? _clusterUri;
+
+        public Uri? CurrentFederationUri => _clusterUri;
         public async Task<Federation> GetCurrentFederationAsync()
         {
-            if(_lastFederationMetadtaRetrievedOn < DateTime.UtcNow - _configuration.ClusterFederationRefreshInterval)
+            if(_federationMetadataLastRetrievedOn < DateTime.UtcNow - _configuration.ClusterFederationRefreshInterval)
             {
                 _federationMetadata = null;
             }

@@ -13,6 +13,7 @@ namespace Stormancer
             builder.Register(() => new JsonNetSerializer()).As<IJsonSerializer>();
             builder.Register(() => new DefaultHttpClientFactory()).As<IHttpClientFactory>().SingleInstance();
             builder.Register((ctx) => new FederationService(ctx.Resolve<IHttpClientFactory>(), ctx.Resolve<IJsonSerializer>(),ctx.Resolve<StormancerClientConfiguration>())).SingleInstance();
+            builder.Register((ctx) => new ConnectionsManager(ctx.Resolve<FederationService>(),ctx.ResolveAll<INetworkTransport>())).SingleInstance();
         }
     }
 }

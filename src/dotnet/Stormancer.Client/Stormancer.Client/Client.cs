@@ -32,6 +32,11 @@ namespace Stormancer
 
             var container = new Container(BuildContainer);
             _scope = container.CreateRootScope();
+
+            foreach(var eventHandlers in _scope.ResolveAll<IClientEventHandler>())
+            {
+                eventHandlers.OnInitializingClient(this);
+            }
         }
 
         private void BuildContainer(DependencyBuilder dependencyBuilder)
@@ -49,6 +54,10 @@ namespace Stormancer
         /// </summary>
         public void Dispose()
         {
+            foreach (var eventHandlers in _scope.ResolveAll<IClientEventHandler>())
+            {
+                eventHandlers.OnDisposingClient(this);
+            }
             _scope.Dispose();
         }
 
@@ -126,12 +135,23 @@ namespace Stormancer
         /// <summary>
         /// Gets a reference to a scene
         /// </summary>
+        /// <param name="application"></param>
         /// <param name="sceneName"></param>
         /// <param name="configurator"></param>
         /// <returns></returns>
         public Scene GetSceneReference(ApplicationId application, string sceneName, Action<SceneConfigurationBuilder>? configurator = default)
         {
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Resolves a dependency from the client dependency resolver.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        public T Get<T>() where T: class
+        {
+            return _scope.Resolve<T>();
         }
     }
 }

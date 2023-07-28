@@ -51,6 +51,11 @@ namespace Stormancer
             return _scope.Resolve<T>(this);
         }
 
+        public Lazy<T> ResolveLazily<T>() where T : class
+        {
+            return _scope.ResolveLazily<T>(this);
+        }
+
         /// <summary>
         /// Resolves an optional dependency.
         /// </summary>
@@ -69,6 +74,11 @@ namespace Stormancer
         public IEnumerable<T> ResolveAll<T>() where T : class
         {
             return _scope.ResolveAll<T>(this);
+        }
+
+        public Lazy<IEnumerable<T>> ResolveAllLazily<T>() where T : class
+        {
+            return _scope.ResolveAllLazily<T>(this);
         }
 
         /// <summary>
@@ -173,6 +183,17 @@ namespace Stormancer
 
         }
 
+        public Lazy<T> ResolveLazily<T>(DependencyResolutionContext? context = null) where T:class
+        {
+            return new Lazy<T>(() => Resolve<T>(context));
+        
+        }
+
+        public Lazy<IEnumerable<T>> ResolveAllLazily<T>(DependencyResolutionContext? context = null) where T : class
+        {
+            return new Lazy<IEnumerable<T>>(() => ResolveAll<T>(context));
+
+        }
 
         /// <summary>
         /// Resolves a mandatory dependency.
