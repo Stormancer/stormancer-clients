@@ -4,19 +4,51 @@ using System.Text;
 
 namespace Stormancer
 {
-    internal interface IClusterNetworkConnection
+    public class NetworkConnection
     {
-        string ClusterId { get; }
+        internal NetworkConnection(INetworkTransport transport, object networkContext)
+        {
+            Transport = transport;
+            _networkContext = networkContext;
+        }
+        private object _networkContext;
+        public INetworkTransport Transport { get; }
 
-        void Send(ReadOnlySpan<byte> message);
 
+        /// <summary>
+        /// Tries sending a binary message through the network connection.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        public bool TrySend(ReadOnlySpan<byte> message)
+        {
+            return Transport.TrySend(message, _networkContext);
+        }
+    }
+    public class ClusterNetworkConnection : NetworkConnection
+    {
+        public ClusterNetworkConnection(INetworkTransport transport, string clusterId, object context): base(transport,context)
+        {
+            ClusterId = clusterId;
+        }
+
+        public string ClusterId { get; }
 
     }
 
-    internal interface IDirectPeerNetworkConnection
+    public class DirectPeerNetworkConnection
     {
-        SessionId RemotePeerSessionId { get; }
+        public DirectPeerNetworkConnection(INetworkTransport transport, SessionId peerSessionId, object context)
+        {
+            Transport = transport;
+            RemotePeerSessionId = peerSessionId;
+            _context = context;
+        }
+        public SessionId RemotePeerSessionId { get; }
 
-        void Send(ReadOnlySpan<byte> message);
+        bool TrySend(ReadOnlySpan<byte> message)
+        {
+
+        }
     }
 }
